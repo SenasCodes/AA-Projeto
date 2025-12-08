@@ -1,7 +1,6 @@
 from AmbienteFarol import AmbienteFarol
-from ambiente import TipoAmbiente
+from ambiente import TipoAmbiente, Ambiente
 from typing import List, Dict, Any, Optional
-
 
 
 class FabricaAmbientes:
