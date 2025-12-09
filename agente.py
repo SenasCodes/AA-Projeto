@@ -156,16 +156,23 @@ class Agente(ABC, Thread):
         except json.JSONDecodeError as e:
             raise ValueError(f"Erro ao ler ficheiro JSON: {e}")
     
-    def observacao(self, obs: Observacao):
+    def observacao(self, obs: Observacao, recompensa: float = 0.0):
         """
         Recebe e processa uma observação do ambiente
-        
+
         Args:
             obs: Observação recebida do ambiente
         """
         self.observacao_atual = obs
         self.historico_observacoes.append(obs)
-        
+
+        # Atualizar recompensa se fornecida
+        if recompensa != 0.0:
+            self.recompensa_ultimo_passo = recompensa
+            self.recompensa_acumulada += recompensa
+            self.historico_recompensas.append(recompensa)
+            self._processar_recompensa(recompensa)
+
         # Registrar comportamento (posição atual para Novelty Search)
         if 'posicao_atual' in obs.dados:
             pos = obs.dados['posicao_atual']
