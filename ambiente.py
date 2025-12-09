@@ -143,4 +143,9 @@ class AmbienteFarol:
 
 
 class FabricaAmbientes:
-    pass
+    @staticmethod
+    def criar_ambiente(tipo: TipoAmbiente, parametros: Dict[str, Any] = None) -> 'Ambiente':
+        """
+        Método stub - a implementação real está no ficheiro FabricaAmbientes.py
+        """
+        raise NotImplementedError("Use a implementação completa em FabricaAmbientes.py")

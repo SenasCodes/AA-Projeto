@@ -1,0 +1,33 @@
+{
+  "passos_totais": 100,
+  "delay_entre_passos": 0.1,
+
+  "ambiente": {
+    "tipo": "FAROL",
+    "parametros": {
+      "largura": 10,
+      "altura": 10,
+      "com_obstaculos": true
+    }
+  },
+
+  "agentes": [
+    {
+      "id": "agente1",
+      "tipo": "reativo",
+      "posicao_inicial": {"x": 1, "y": 1},
+      "parametros": {}
+    },
+    {
+      "id": "agente2",
+      "tipo": "qlearning",
+      "posicao_inicial": {"x": 8, "y": 8},
+      "parametros": {
+        "taxa_aprendizagem": 0.1,
+        "fator_desconto": 0.95,
+        "epsilon": 0.1,
+        "modo_aprendizagem": false
+      }
+    }
+  ]
+}
