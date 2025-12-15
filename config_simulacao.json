@@ -1,13 +1,14 @@
 {
   "passos_totais": 100,
   "delay_entre_passos": 0.1,
+  "num_episodios": 50,
 
   "ambiente": {
     "tipo": "FAROL",
     "parametros": {
       "largura": 10,
       "altura": 10,
-      "com_obstaculos": true
+      "com_obstaculos": false
     }
   },
 
@@ -23,10 +24,12 @@
       "tipo": "qlearning",
       "posicao_inicial": {"x": 8, "y": 8},
       "parametros": {
-        "taxa_aprendizagem": 0.1,
-        "fator_desconto": 0.95,
-        "epsilon": 0.1,
-        "modo_aprendizagem": false
+        "alpha": 0.1,
+        "gamma": 0.95,
+        "epsilon": 1.0,
+        "epsilon_decay": 0.995,
+        "epsilon_min": 0.01,
+        "modo_aprendizagem": true
       }
     }
   ]

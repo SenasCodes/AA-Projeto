@@ -30,12 +30,15 @@ class MotorDeSimulacao:
         # Componentes da simulação
         self.ambiente: Optional[Ambiente] = None
         self.agentes: List[Agente] = []
+        self.posicoes_iniciais: Dict[str, Any] = {}  # Armazena posições iniciais dos agentes
 
         # Controle de execução
         self.em_execucao = False
         self.passo_atual = 0
         self.passos_totais = self.parametros.get('passos_totais', 1000)
         self.delay_entre_passos = self.parametros.get('delay_entre_passos', 0.1)
+        self.num_episodios = self.parametros.get('num_episodios', 1)
+        self.episodio_atual = 0
 
         # Métricas
         self.metricas = {
@@ -45,6 +48,9 @@ class MotorDeSimulacao:
             'passos_executados': 0,
             'recompensa_total': 0
         }
+        
+        # Métricas por episódio
+        self.historico_episodios = []
 
     @staticmethod
     def cria(nome_do_ficheiro_parametros: str) -> 'MotorDeSimulacao':
@@ -117,6 +123,7 @@ class MotorDeSimulacao:
             pos = Posicao(posicao_inicial['x'], posicao_inicial['y'])
 
             self.ambiente.registar_agente(agente_id, pos)
+            self.posicoes_iniciais[agente_id] = pos  # Armazenar posição inicial
 
             self.agentes.append(agente)
 
@@ -133,8 +140,7 @@ class MotorDeSimulacao:
 
     def executa(self):
         """
-        Executa a simulação completa
-        Ciclo principal: observação -> ação -> atualização
+        Executa a simulação completa (múltiplos episódios se configurado)
         """
         if self.em_execucao:
             print("⚠️  Simulação já está em execução")
@@ -143,7 +149,75 @@ class MotorDeSimulacao:
         print("\n" + "="*60)
         print("🚀 INICIANDO SIMULAÇÃO SMA")
         print("="*60)
-
+        
+        if self.num_episodios > 1:
+            print(f"📚 Modo Multi-Episódio: {self.num_episodios} episódios")
+            self._executar_multi_episodio()
+        else:
+            print(f"📖 Modo Episódio Único")
+            self._executar_episodio_unico()
+    
+    def _executar_multi_episodio(self):
+        """Executa múltiplos episódios de treino"""
+        inicio_tempo_total = time.time()
+        
+        for episodio in range(1, self.num_episodios + 1):
+            self.episodio_atual = episodio
+            
+            # Reset para novo episódio
+            self._reset_episodio()
+            
+            # Executar episódio
+            print(f"\n{'─'*60}")
+            print(f"📖 Episódio {episodio}/{self.num_episodios}")
+            print(f"{'─'*60}")
+            
+            inicio_episodio = time.time()
+            recompensa_episodio = 0
+            
+            # Ciclo do episódio
+            while (self.passo_atual < self.passos_totais and
+                   not self.ambiente.terminado and
+                   self.em_execucao):
+                self._executar_passo()
+                if self.delay_entre_passos > 0 and episodio == self.num_episodios:
+                    time.sleep(self.delay_entre_passos)
+            
+            # Finalizar episódio
+            fim_episodio = time.time()
+            tempo_episodio = fim_episodio - inicio_episodio
+            recompensa_episodio = self.metricas['recompensa_total']
+            
+            # Notificar agentes do fim do episódio
+            for agente in self.agentes:
+                if hasattr(agente, 'fim_episodio'):
+                    agente.fim_episodio()
+            
+            # Guardar métricas do episódio
+            self.historico_episodios.append({
+                'episodio': episodio,
+                'passos': self.passo_atual,
+                'recompensa_total': recompensa_episodio,
+                'tempo': tempo_episodio,
+                'agentes_no_farol': self.ambiente.metricas.get('agentes_no_farol', 0)
+            })
+            
+            # Mostrar progresso
+            if episodio % 10 == 0 or episodio == self.num_episodios:
+                media_reward = sum(e['recompensa_total'] for e in self.historico_episodios[-10:]) / min(10, len(self.historico_episodios))
+                print(f"  ✅ Recompensa: {recompensa_episodio:.1f} | Média (últimos 10): {media_reward:.1f}")
+                
+                # Mostrar epsilon se disponível
+                for agente in self.agentes:
+                    if hasattr(agente, 'epsilon'):
+                        print(f"     {agente.agente_id}: epsilon={agente.epsilon:.3f}, Q-table={len(getattr(agente, 'Q', {}))}")
+        
+        # Finalização
+        self.metricas['tempo_execucao'] = time.time() - inicio_tempo_total
+        self._mostrar_resultados_multi_episodio()
+    
+    def _executar_episodio_unico(self):
+        """Executa um único episódio (comportamento original)"""
         self.em_execucao = True
         self.metricas['inicio_execucao'] = datetime.now()
         inicio_tempo = time.time()
@@ -166,6 +240,23 @@ class MotorDeSimulacao:
         self.metricas['tempo_execucao'] = fim_tempo - inicio_tempo
 
         self._mostrar_resultados()
+    
+    def _reset_episodio(self):
+        """Reset do ambiente e agentes para novo episódio"""
+        self.em_execucao = True
+        self.passo_atual = 0
+        self.metricas['recompensa_total'] = 0
+        
+        # Reset ambiente
+        self.ambiente.reset()
+        
+        # Reset agentes
+        for agente in self.agentes:
+            agente.reset()
+            # Re-registrar agente no ambiente com posição inicial
+            pos_inicial = self.posicoes_iniciais.get(agente.agente_id)
+            self.ambiente.registar_agente(agente.agente_id, pos_inicial)
+            agente.instala(self.ambiente, pos_inicial)
 
     def _executar_passo(self):
         """Executa um único passo de simulação"""
@@ -194,23 +285,21 @@ class MotorDeSimulacao:
         # 1. Obter observação do ambiente
         obs = self.ambiente.observacao_para(agente_id)
 
-        # 2. Agente processa observação
-        agente.observacao(obs)
-
-        # 3. Agente decide ação
+        # 2. Agente decide ação (baseado na observação anterior)
         acao = agente.age()
         acao.agente_id = agente_id
 
-        # 4. Executar ação no ambiente
+        # 3. Executar ação no ambiente
         recompensa = self.ambiente.agir(acao, agente_id)
 
-        # 5. Agente avalia recompensa
-        agente.avaliacaoEstadoAtual(recompensa)
+        # 4. Agente processa nova observação COM recompensa
+        nova_obs = self.ambiente.observacao_para(agente_id)
+        agente.observacao(nova_obs, recompensa)
 
-        # 6. REGISTAR AÇÃO (ADICIONAR ESTA LINHA)
+        # 5. Registar ação
         agente.historico_acoes.append(acao)
 
-        # 7. Atualizar métricas
+        # 6. Atualizar métricas
         self.metricas['recompensa_total'] += recompensa
 
     def pausar(self):
@@ -256,6 +345,49 @@ class MotorDeSimulacao:
             print(f"\n🌍 MÉTRICAS DO AMBIENTE:")
             for chave, valor in metricas_ambiente.items():
                 print(f"  {chave}: {valor}")
+    
+    def _mostrar_resultados_multi_episodio(self):
+        """Mostra resultados consolidados de múltiplos episódios"""
+        print("\n" + "="*60)
+        print("📊 RESULTADOS DO TREINO MULTI-EPISÓDIO")
+        print("="*60)
+        
+        print(f"\n📈 ESTATÍSTICAS GERAIS:")
+        print(f"  Episódios executados: {len(self.historico_episodios)}")
+        print(f"  Tempo total: {self.metricas['tempo_execucao']:.2f} segundos")
+        
+        # Estatísticas de recompensa
+        recompensas = [e['recompensa_total'] for e in self.historico_episodios]
+        print(f"\n💰 EVOLUÇÃO DA RECOMPENSA:")
+        print(f"  Primeiro episódio: {recompensas[0]:.2f}")
+        print(f"  Último episódio: {recompensas[-1]:.2f}")
+        print(f"  Melhor episódio: {max(recompensas):.2f}")
+        print(f"  Média (últimos 10): {sum(recompensas[-10:])/min(10, len(recompensas)):.2f}")
+        melhoria = recompensas[-1] - recompensas[0]
+        percentual = (melhoria/abs(recompensas[0])*100) if recompensas[0] != 0 else 0
+        print(f"  Melhoria total: {melhoria:.2f} ({percentual:.1f}%)")
+        
+        # Estatísticas dos agentes
+        print(f"\n👥 ESTADO FINAL DOS AGENTES:")
+        for agente in self.agentes:
+            stats = agente.obter_estatisticas()
+            print(f"  {agente.agente_id}:")
+            
+            # Q-Learning específico
+            if hasattr(agente, 'epsilon'):
+                print(f"    Epsilon: {agente.epsilon:.4f}")
+                print(f"    Estados aprendidos: {len(getattr(agente, 'Q', {}))}")
+            
+            print(f"    Recompensa final: {stats['recompensa_acumulada']:.2f}")
+            print(f"    Espaços explorados: {stats['espacos_explorados']}")
+        
+        # Taxa de sucesso
+        sucessos = sum(1 for e in self.historico_episodios if e['agentes_no_farol'] > 0)
+        taxa = sucessos/len(self.historico_episodios)*100 if self.historico_episodios else 0
+        print(f"\n🎯 TAXA DE SUCESSO:")
+        print(f"  Episódios com chegada ao farol: {sucessos}/{len(self.historico_episodios)} ({taxa:.1f}%)")
+        
+        print("\n" + "="*60)
 
     def obter_metricas(self) -> Dict[str, Any]:
         """

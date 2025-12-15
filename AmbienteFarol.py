@@ -86,9 +86,11 @@ class AmbienteFarol(Ambiente):
                 dist_nova = nova_pos.distancia(self.pos_farol)
 
                 if dist_nova < dist_antiga:
-                    recompensa = 0.1  # Recompensa por aproximação
+                    recompensa = 1.0  # Recompensa maior por aproximação
                 elif dist_nova > dist_antiga:
-                    recompensa = -0.1  # Penalização por afastamento
+                    recompensa = -0.5  # Penalização maior por afastamento
+                else:
+                    recompensa = 0.1  # Pequena recompensa por explorar
 
                 # Grande recompensa por alcançar o farol
                 if nova_pos == self.pos_farol:
@@ -96,6 +98,9 @@ class AmbienteFarol(Ambiente):
                     if agente_id not in self.metricas['tempos_chegada']:
                         self.metricas['tempos_chegada'][agente_id] = self.passo_atual
                         self.metricas['agentes_no_farol'] += 1
+            else:
+                # Penalização por movimento inválido (obstáculo/parede)
+                recompensa = -0.2
 
         return recompensa
 
@@ -115,3 +120,13 @@ class AmbienteFarol(Ambiente):
         if (len(self.agentes) > 0 and
                 self.metricas['agentes_no_farol'] == len(self.agentes)):
             self.terminar_episodio()
+
+    def reset(self):
+        """Reinicia o ambiente para o estado inicial"""
+        super().reset()
+        # Reinicializar métricas específicas do AmbienteFarol
+        self.metricas.update({
+            'agentes_no_farol': 0,
+            'distancias_medias': [],
+            'tempos_chegada': {}
+        })
