@@ -10,6 +10,7 @@ from typing import List, Dict, Any, Optional
 from agente import Agente, FabricaAgentes
 from ambiente import Ambiente, FabricaAmbientes, TipoAmbiente
 from FabricaAmbientes import FabricaAmbientes
+from typing import Optional
 
 
 class MotorDeSimulacao:
@@ -51,6 +52,10 @@ class MotorDeSimulacao:
         
         # Métricas por episódio
         self.historico_episodios = []
+        
+        # Visualização
+        self.visualizador = None
+        self.usar_visualizacao = self.parametros.get('usar_visualizacao', False)
 
     @staticmethod
     def cria(nome_do_ficheiro_parametros: str) -> 'MotorDeSimulacao':
@@ -75,10 +80,16 @@ class MotorDeSimulacao:
 
             # Configurar agentes
             motor._configurar_agentes(parametros.get('agentes', []))
+            
+            # Inicializar visualização se solicitado
+            if motor.usar_visualizacao:
+                motor._inicializar_visualizacao()
 
             print(f"✅ Simulação criada a partir de {nome_do_ficheiro_parametros}")
             print(f"   Ambiente: {type(motor.ambiente).__name__}")
             print(f"   Agentes: {len(motor.agentes)}")
+            if motor.usar_visualizacao:
+                print(f"   Visualização: Ativada")
 
             return motor
 
@@ -128,6 +139,19 @@ class MotorDeSimulacao:
             self.agentes.append(agente)
 
             print(f"   ✅ Agente {agente_id} ({tipo}) registado em {pos}")
+    
+    def _inicializar_visualizacao(self):
+        """Inicializa o visualizador"""
+        try:
+            from visualizacao import Visualizador
+            self.visualizador = Visualizador(self.ambiente)
+            print("   ✅ Visualização inicializada")
+        except ImportError:
+            print("   ⚠️  Pygame não disponível. Visualização desativada.")
+            self.usar_visualizacao = False
+        except Exception as e:
+            print(f"   ⚠️  Erro ao inicializar visualização: {e}")
+            self.usar_visualizacao = False
 
     def listaAgentes(self) -> List[Agente]:
         """
@@ -214,6 +238,11 @@ class MotorDeSimulacao:
         
         # Finalização
         self.metricas['tempo_execucao'] = time.time() - inicio_tempo_total
+        
+        # Fechar visualização
+        if self.usar_visualizacao and self.visualizador:
+            self.visualizador.fechar()
+        
         self._mostrar_resultados_multi_episodio()
     
     def _executar_episodio_unico(self):
@@ -238,6 +267,10 @@ class MotorDeSimulacao:
         fim_tempo = time.time()
         self.metricas['fim_execucao'] = datetime.now()
         self.metricas['tempo_execucao'] = fim_tempo - inicio_tempo
+        
+        # Fechar visualização
+        if self.usar_visualizacao and self.visualizador:
+            self.visualizador.fechar()
 
         self._mostrar_resultados()
     
@@ -274,6 +307,12 @@ class MotorDeSimulacao:
 
         # Atualizar ambiente
         self.ambiente.atualizacao()
+        
+        # Atualizar visualização
+        if self.usar_visualizacao and self.visualizador:
+            continuar = self.visualizador.atualizar(self.passo_atual, self.agentes)
+            if not continuar:
+                self.em_execucao = False
 
         # Atualizar métricas
         self.metricas['passos_executados'] = self.passo_atual

@@ -1,4 +1,5 @@
 from ambiente import Ambiente, Posicao, Observacao, Direcao, Acao
+from typing import Set
 import numpy as np
 
 
@@ -13,7 +14,7 @@ class AmbienteFarol(Ambiente):
         self.pos_farol = pos_farol or Posicao(largura // 2, altura // 2)
 
         # Obstáculos (opcionais)
-        self.obstaculos: set[Posicao] = set()
+        self.obstaculos: Set[Posicao] = set()
         if com_obstaculos:
             self._gerar_obstaculos()
 

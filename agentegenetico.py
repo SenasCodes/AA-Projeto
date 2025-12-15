@@ -104,6 +104,27 @@ class AgenteEvolucionario(Agente):
             self.genotype.copy()
         )
     
+    def mutate(self, taxa_mutacao: float):
+        """
+        Aplica mutação ao genótipo
+        
+        Args:
+            taxa_mutacao: Probabilidade de mutação por gene
+        """
+        for i in range(len(self.genotype)):
+            if random.random() < taxa_mutacao:
+                self.genotype[i] = random.choice(self.acoes_disponiveis)
+    
+    @property
+    def combined_fitness(self) -> float:
+        """Retorna fitness combinado (novidade + objetivo)"""
+        return self.fitness_total
+    
+    @combined_fitness.setter
+    def combined_fitness(self, value: float):
+        """Define fitness combinado"""
+        self.fitness_total = value
+    
     def reset(self):
         """Reinicia o agente incluindo o contador de passos"""
         super().reset()
@@ -288,8 +309,23 @@ class PopulacaoEvolucionaria:
             # Calcular fitness objetivo
             agente.calculate_objective_fitness()
             
-            # Calcular novidade
-            agente.calculate_novelty(self.arquivo, self.k_vizinhos)
+            # Calcular novidade (usando arquivo de comportamentos)
+            if self.arquivo and agente.behavior:
+                # Calcular distância média aos k vizinhos mais próximos no arquivo
+                distancias = []
+                for comportamento_arquivo in self.arquivo:
+                    dist = agente._jaccard_distance(agente.behavior, comportamento_arquivo)
+                    distancias.append(dist)
+                
+                if distancias:
+                    k_proximos = sorted(distancias)[:min(self.k_vizinhos, len(distancias))]
+                    agente.novelty_score = sum(k_proximos) / len(k_proximos) if k_proximos else 0.0
+                else:
+                    agente.novelty_score = 1.0  # Comportamento único se arquivo vazio
+            elif agente.behavior:
+                agente.novelty_score = 1.0  # Primeiro comportamento é sempre novo
+            else:
+                agente.novelty_score = 0.0
             
             # Fitness combinado
             agente.combined_fitness = (
@@ -314,14 +350,21 @@ class PopulacaoEvolucionaria:
         for passo in range(agente.num_steps):
             # Agente decide ação
             acao = agente.age()
+            acao.agente_id = agente.agente_id
             
-            # Ambiente processa
-            obs, recompensa, terminado = self.ambiente.processar_acao(acao)
+            # Ambiente processa ação
+            recompensa = self.ambiente.agir(acao, agente.agente_id)
+            
+            # Obter nova observação
+            obs = self.ambiente.observacao_para(agente.agente_id)
             
             # Agente recebe observação
             agente.observacao(obs, recompensa)
             
-            if terminado:
+            # Atualizar ambiente
+            self.ambiente.atualizacao()
+            
+            if self.ambiente.terminado:
                 break
     
     def _registar_estatisticas(self):

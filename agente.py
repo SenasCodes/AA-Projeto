@@ -232,14 +232,16 @@ class AgenteReativo(Agente):
         self.politica_fixa = parametros.get('politica', 'ir_para_farol') if parametros else 'ir_para_farol'
     
     def age(self) -> Acao:
-        """Move em direção ao farol"""
+        """Decide ação baseada na política fixa"""
         if not self.observacao_atual:
             return Acao("mover", {'direcao': Direcao.PARADO})
         
         dados = self.observacao_atual.dados
         
-        if 'direcao_farol' in dados:
-            dx, dy = dados['direcao_farol']
+        # Política para ambiente Farol ou Labirinto
+        if 'direcao_farol' in dados or 'direcao_fim' in dados:
+            direcao_alvo = dados.get('direcao_farol') or dados.get('direcao_fim')
+            dx, dy = direcao_alvo
             
             if abs(dx) > abs(dy):
                 direcao = Direcao.ESTE if dx > 0 else Direcao.OESTE
@@ -248,9 +250,74 @@ class AgenteReativo(Agente):
             else:
                 direcao = Direcao.ESTE if dx > 0 else (Direcao.OESTE if dx < 0 else Direcao.NORTE)
             
-            return Acao("mover", {'direcao': direcao})
+            # Verificar se há obstáculo
+            obstaculos = dados.get('obstaculos_vizinhos', {})
+            if not obstaculos.get(direcao.name, False):
+                return Acao("mover", {'direcao': direcao})
+            else:
+                # Tentar direções alternativas
+                for dir_alt in [Direcao.NORTE, Direcao.SUL, Direcao.ESTE, Direcao.OESTE]:
+                    if not obstaculos.get(dir_alt.name, False):
+                        return Acao("mover", {'direcao': dir_alt})
         
-        return Acao("mover", {'direcao': random.choice([Direcao.NORTE, Direcao.SUL, Direcao.ESTE, Direcao.OESTE])})
+        # Política para ambiente Foraging
+        elif 'recursos_proximos' in dados or 'ninhos_proximos' in dados:
+            recursos_carregados = dados.get('recursos_carregados', 0)
+            
+            # Se tem recurso, ir para o ninho
+            if recursos_carregados > 0:
+                ninhos = dados.get('ninhos_proximos', [])
+                if ninhos and dados.get('pode_depositar', False):
+                    return Acao("depositar", {})
+                elif ninhos:
+                    # Mover em direção ao ninho mais próximo
+                    ninho_mais_proximo = min(ninhos, key=lambda n: n['distancia'])
+                    nx, ny = ninho_mais_proximo['posicao']
+                    pos_atual = dados['posicao_atual']
+                    dx = nx - pos_atual[0]
+                    dy = ny - pos_atual[1]
+                    
+                    if abs(dx) > abs(dy):
+                        direcao = Direcao.ESTE if dx > 0 else Direcao.OESTE
+                    else:
+                        direcao = Direcao.SUL if dy > 0 else Direcao.NORTE
+                    
+                    obstaculos = dados.get('obstaculos_vizinhos', {})
+                    if not obstaculos.get(direcao.name, False):
+                        return Acao("mover", {'direcao': direcao})
+            else:
+                # Se não tem recurso, procurar recursos
+                if dados.get('pode_recolher', False):
+                    return Acao("recolher", {})
+                else:
+                    recursos = dados.get('recursos_proximos', [])
+                    if recursos:
+                        recurso_mais_proximo = min(recursos, key=lambda r: r['distancia'])
+                        rx, ry = recurso_mais_proximo['posicao']
+                        pos_atual = dados['posicao_atual']
+                        dx = rx - pos_atual[0]
+                        dy = ry - pos_atual[1]
+                        
+                        if abs(dx) > abs(dy):
+                            direcao = Direcao.ESTE if dx > 0 else Direcao.OESTE
+                        else:
+                            direcao = Direcao.SUL if dy > 0 else Direcao.NORTE
+                        
+                        obstaculos = dados.get('obstaculos_vizinhos', {})
+                        if not obstaculos.get(direcao.name, False):
+                            return Acao("mover", {'direcao': direcao})
+        
+        # Fallback: movimento aleatório
+        direcoes_validas = []
+        obstaculos = dados.get('obstaculos_vizinhos', {})
+        for dir in [Direcao.NORTE, Direcao.SUL, Direcao.ESTE, Direcao.OESTE]:
+            if not obstaculos.get(dir.name, False):
+                direcoes_validas.append(dir)
+        
+        if direcoes_validas:
+            return Acao("mover", {'direcao': random.choice(direcoes_validas)})
+        else:
+            return Acao("mover", {'direcao': Direcao.PARADO})
 
 
 # ============================================================================
