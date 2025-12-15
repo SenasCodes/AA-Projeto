@@ -1,15 +1,17 @@
 {
-  "passos_totais": 100,
+  "passos_totais": 150,
   "delay_entre_passos": 0.1,
-  "num_episodios": 50,
-  "usar_visualizacao": false,
+  "num_episodios": 1,
+  "usar_visualizacao": true,
 
   "ambiente": {
-    "tipo": "FAROL",
+    "tipo": "LABIRINTO",
     "parametros": {
-      "largura": 10,
-      "altura": 10,
-      "com_obstaculos": true
+      "largura": 12,
+      "altura": 12,
+      "densidade_paredes": 0.3,
+      "pos_inicio": {"x": 0, "y": 0},
+      "pos_fim": {"x": 11, "y": 11}
     }
   },
 
@@ -17,13 +19,13 @@
     {
       "id": "agente1",
       "tipo": "reativo",
-      "posicao_inicial": {"x": 1, "y": 1},
+      "posicao_inicial": {"x": 0, "y": 0},
       "parametros": {}
     },
     {
       "id": "agente2",
       "tipo": "qlearning",
-      "posicao_inicial": {"x": 8, "y": 8},
+      "posicao_inicial": {"x": 0, "y": 0},
       "parametros": {
         "alpha": 0.1,
         "gamma": 0.95,
@@ -35,3 +37,4 @@
     }
   ]
 }
+

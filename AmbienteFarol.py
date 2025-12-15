@@ -1,4 +1,5 @@
 from ambiente import Ambiente, Posicao, Observacao, Direcao, Acao
+from typing import Set
 import numpy as np
 
 
@@ -13,7 +14,7 @@ class AmbienteFarol(Ambiente):
         self.pos_farol = pos_farol or Posicao(largura // 2, altura // 2)
 
         # Obstáculos (opcionais)
-        self.obstaculos: set[Posicao] = set()
+        self.obstaculos: Set[Posicao] = set()
         if com_obstaculos:
             self._gerar_obstaculos()
 
@@ -86,21 +87,21 @@ class AmbienteFarol(Ambiente):
                 dist_nova = nova_pos.distancia(self.pos_farol)
 
                 if dist_nova < dist_antiga:
-                    recompensa = 1.0  # Recompensa maior por aproximação
+                    recompensa = 2.0  # Recompensa maior por aproximação
                 elif dist_nova > dist_antiga:
-                    recompensa = -0.5  # Penalização maior por afastamento
+                    recompensa = -1.0  # Penalização maior por afastamento
                 else:
-                    recompensa = 0.1  # Pequena recompensa por explorar
+                    recompensa = -0.1  # Pequena penalização por não progredir
 
                 # Grande recompensa por alcançar o farol
                 if nova_pos == self.pos_farol:
-                    recompensa = 10.0
+                    recompensa = 50.0  # Recompensa muito maior por chegar
                     if agente_id not in self.metricas['tempos_chegada']:
                         self.metricas['tempos_chegada'][agente_id] = self.passo_atual
                         self.metricas['agentes_no_farol'] += 1
             else:
                 # Penalização por movimento inválido (obstáculo/parede)
-                recompensa = -0.2
+                recompensa = -0.5  # Penalização maior para desencorajar
 
         return recompensa
 

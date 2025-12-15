@@ -138,10 +138,6 @@ class Ambiente(ABC):
             })
 
 
-class AmbienteFarol:
-    pass
-
-
 class FabricaAmbientes:
     @staticmethod
     def criar_ambiente(tipo: TipoAmbiente, parametros: Dict[str, Any] = None) -> 'Ambiente':

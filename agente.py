@@ -230,27 +230,156 @@ class AgenteReativo(Agente):
     def __init__(self, agente_id: str, parametros: Dict[str, Any] = None):
         super().__init__(agente_id, parametros)
         self.politica_fixa = parametros.get('politica', 'ir_para_farol') if parametros else 'ir_para_farol'
+        # Memória para evitar loops
+        self.ultimas_posicoes = []  # Últimas 5 posições
+        self.max_memoria = 5
+    
+    def _evitar_loop(self, direcao: Direcao, dados: Dict) -> Optional[Direcao]:
+        """Verifica se movimento causaria loop e sugere alternativa"""
+        if not self.posicao_atual:
+            return direcao
+        
+        # Calcular próxima posição
+        nova_pos = self.posicao_atual.mover(direcao)
+        nova_pos_tupla = (nova_pos.x, nova_pos.y)
+        
+        # Verificar se já esteve nesta posição recentemente
+        if nova_pos_tupla in self.ultimas_posicoes:
+            # Tentar direções alternativas que não causem loop
+            obstaculos = dados.get('obstaculos_vizinhos', {})
+            direcoes_ordenadas = [Direcao.NORTE, Direcao.SUL, Direcao.ESTE, Direcao.OESTE]
+            
+            for dir_alt in direcoes_ordenadas:
+                if dir_alt == direcao:
+                    continue
+                pos_alt = self.posicao_atual.mover(dir_alt)
+                pos_alt_tupla = (pos_alt.x, pos_alt.y)
+                if (not obstaculos.get(dir_alt.name, False) and 
+                    pos_alt_tupla not in self.ultimas_posicoes):
+                    return dir_alt
+        
+        return direcao
     
     def age(self) -> Acao:
-        """Move em direção ao farol"""
+        """Decide ação baseada na política fixa"""
         if not self.observacao_atual:
             return Acao("mover", {'direcao': Direcao.PARADO})
         
         dados = self.observacao_atual.dados
         
-        if 'direcao_farol' in dados:
-            dx, dy = dados['direcao_farol']
-            
-            if abs(dx) > abs(dy):
-                direcao = Direcao.ESTE if dx > 0 else Direcao.OESTE
-            elif abs(dy) > abs(dx):
-                direcao = Direcao.SUL if dy > 0 else Direcao.NORTE
-            else:
-                direcao = Direcao.ESTE if dx > 0 else (Direcao.OESTE if dx < 0 else Direcao.NORTE)
-            
-            return Acao("mover", {'direcao': direcao})
+        # Atualizar memória de posições
+        if self.posicao_atual:
+            pos_tupla = (self.posicao_atual.x, self.posicao_atual.y)
+            self.ultimas_posicoes.append(pos_tupla)
+            if len(self.ultimas_posicoes) > self.max_memoria:
+                self.ultimas_posicoes.pop(0)
         
-        return Acao("mover", {'direcao': random.choice([Direcao.NORTE, Direcao.SUL, Direcao.ESTE, Direcao.OESTE])})
+        # Política para ambiente Farol ou Labirinto
+        if 'direcao_farol' in dados or 'direcao_fim' in dados:
+            direcao_alvo = dados.get('direcao_farol') or dados.get('direcao_fim')
+            dx, dy = direcao_alvo
+            
+            # Se já chegou, parar
+            if dx == 0 and dy == 0:
+                return Acao("mover", {'direcao': Direcao.PARADO})
+            
+            # Escolher direção principal (priorizar maior componente)
+            if abs(dx) > abs(dy):
+                direcao_principal = Direcao.ESTE if dx > 0 else Direcao.OESTE
+                direcao_secundaria = Direcao.SUL if dy > 0 else Direcao.NORTE
+            else:
+                direcao_principal = Direcao.SUL if dy > 0 else Direcao.NORTE
+                direcao_secundaria = Direcao.ESTE if dx > 0 else Direcao.OESTE
+            
+            obstaculos = dados.get('obstaculos_vizinhos', {})
+            
+            # Tentar direção principal
+            if not obstaculos.get(direcao_principal.name, False):
+                direcao_final = self._evitar_loop(direcao_principal, dados)
+                if direcao_final:
+                    return Acao("mover", {'direcao': direcao_final})
+            
+            # Tentar direção secundária
+            if not obstaculos.get(direcao_secundaria.name, False):
+                direcao_final = self._evitar_loop(direcao_secundaria, dados)
+                if direcao_final:
+                    return Acao("mover", {'direcao': direcao_final})
+            
+            # Se ambas bloqueadas, tentar outras direções (evitando loops)
+            for dir_alt in [Direcao.NORTE, Direcao.SUL, Direcao.ESTE, Direcao.OESTE]:
+                if (not obstaculos.get(dir_alt.name, False) and
+                    dir_alt != direcao_principal and dir_alt != direcao_secundaria):
+                    direcao_final = self._evitar_loop(dir_alt, dados)
+                    if direcao_final and direcao_final != dir_alt:
+                        return Acao("mover", {'direcao': direcao_final})
+                    elif direcao_final:
+                        return Acao("mover", {'direcao': direcao_final})
+        
+        # Política para ambiente Foraging
+        elif 'recursos_proximos' in dados or 'ninhos_proximos' in dados:
+            recursos_carregados = dados.get('recursos_carregados', 0)
+            
+            # Se tem recurso, ir para o ninho
+            if recursos_carregados > 0:
+                ninhos = dados.get('ninhos_proximos', [])
+                if ninhos and dados.get('pode_depositar', False):
+                    return Acao("depositar", {})
+                elif ninhos:
+                    # Mover em direção ao ninho mais próximo
+                    ninho_mais_proximo = min(ninhos, key=lambda n: n['distancia'])
+                    nx, ny = ninho_mais_proximo['posicao']
+                    pos_atual = dados['posicao_atual']
+                    dx = nx - pos_atual[0]
+                    dy = ny - pos_atual[1]
+                    
+                    if abs(dx) > abs(dy):
+                        direcao = Direcao.ESTE if dx > 0 else Direcao.OESTE
+                    else:
+                        direcao = Direcao.SUL if dy > 0 else Direcao.NORTE
+                    
+                    obstaculos = dados.get('obstaculos_vizinhos', {})
+                    if not obstaculos.get(direcao.name, False):
+                        return Acao("mover", {'direcao': direcao})
+            else:
+                # Se não tem recurso, procurar recursos
+                if dados.get('pode_recolher', False):
+                    return Acao("recolher", {})
+                else:
+                    recursos = dados.get('recursos_proximos', [])
+                    if recursos:
+                        recurso_mais_proximo = min(recursos, key=lambda r: r['distancia'])
+                        rx, ry = recurso_mais_proximo['posicao']
+                        pos_atual = dados['posicao_atual']
+                        dx = rx - pos_atual[0]
+                        dy = ry - pos_atual[1]
+                        
+                        if abs(dx) > abs(dy):
+                            direcao = Direcao.ESTE if dx > 0 else Direcao.OESTE
+                        else:
+                            direcao = Direcao.SUL if dy > 0 else Direcao.NORTE
+                        
+                        obstaculos = dados.get('obstaculos_vizinhos', {})
+                        if not obstaculos.get(direcao.name, False):
+                            return Acao("mover", {'direcao': direcao})
+        
+        # Fallback: movimento aleatório (evitando loops)
+        direcoes_validas = []
+        obstaculos = dados.get('obstaculos_vizinhos', {})
+        for dir in [Direcao.NORTE, Direcao.SUL, Direcao.ESTE, Direcao.OESTE]:
+            if not obstaculos.get(dir.name, False):
+                direcao_final = self._evitar_loop(dir, dados)
+                if direcao_final:
+                    direcoes_validas.append(direcao_final)
+        
+        if direcoes_validas:
+            return Acao("mover", {'direcao': random.choice(direcoes_validas)})
+        else:
+            return Acao("mover", {'direcao': Direcao.PARADO})
+    
+    def reset(self):
+        """Reinicia estado incluindo memória de posições"""
+        super().reset()
+        self.ultimas_posicoes.clear()
 
 
 # ============================================================================
