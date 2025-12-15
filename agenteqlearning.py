@@ -53,7 +53,7 @@ class AgenteQLearning(Agente):
     
     def age(self) -> Acao:
         """
-        Escolhe ação usando política epsilon-greedy
+        Escolhe ação usando política epsilon-greedy melhorada
         
         Returns:
             Ação escolhida
@@ -62,24 +62,85 @@ class AgenteQLearning(Agente):
             return Acao("mover", {'direcao': Direcao.PARADO})
         
         estado = self._extrair_estado(self.observacao_atual)
+        dados = self.observacao_atual.dados
         
         # Inicializar Q-values para estado novo
         if estado not in self.Q:
             self.Q[estado] = {d.name: 0.0 for d in self.acoes_disponiveis}
         
+        # Verificar se chegou ao objetivo
+        if (dados.get('no_farol', False) or 
+            dados.get('no_fim', False) or 
+            dados.get('distancia_farol', 999) == 0 or
+            dados.get('distancia_fim', 999) == 0):
+            return Acao("mover", {'direcao': Direcao.PARADO})
+        
         # Escolher ação
         if self.modo_aprendizagem and random.random() < self.epsilon:
-            # Exploração: ação aleatória
-            direcao = random.choice(self.acoes_disponiveis)
+            # Exploração inteligente: preferir direções que vão em direção ao objetivo
+            direcoes_validas = self._direcoes_validas(dados)
+            if direcoes_validas:
+                # Priorizar direções que aproximam do objetivo
+                direcoes_prioritarias = self._direcoes_para_objetivo(dados, direcoes_validas)
+                if direcoes_prioritarias:
+                    direcao = random.choice(direcoes_prioritarias)
+                else:
+                    direcao = random.choice(direcoes_validas)
+            else:
+                direcao = Direcao.PARADO
         else:
             # Exploitação: melhor ação conhecida
             direcao = self._melhor_acao_q(estado)
+            # Verificar se ação é válida
+            direcoes_validas = self._direcoes_validas(dados)
+            if direcao not in direcoes_validas and direcoes_validas:
+                direcao = random.choice(direcoes_validas)
         
         # Guardar estado e ação para próximo update
         self.estado_anterior = estado
         self.acao_anterior = direcao.name
         
         return Acao("mover", {'direcao': direcao})
+    
+    def _direcoes_validas(self, dados: Dict) -> List[Direcao]:
+        """Retorna lista de direções válidas (sem obstáculos)"""
+        obstaculos = dados.get('obstaculos_vizinhos', {})
+        validas = []
+        for dir in self.acoes_disponiveis:
+            if not obstaculos.get(dir.name, False):
+                validas.append(dir)
+        return validas if validas else [Direcao.PARADO]
+    
+    def _direcoes_para_objetivo(self, dados: Dict, direcoes_validas: List[Direcao]) -> List[Direcao]:
+        """Retorna direções que aproximam do objetivo"""
+        if 'direcao_farol' in dados:
+            dx, dy = dados['direcao_farol']
+        elif 'direcao_fim' in dados:
+            dx, dy = dados['direcao_fim']
+        else:
+            return direcoes_validas
+        
+        if dx == 0 and dy == 0:
+            return direcoes_validas
+        
+        # Priorizar direção principal
+        prioritarias = []
+        if abs(dx) > abs(dy):
+            dir_principal = Direcao.ESTE if dx > 0 else Direcao.OESTE
+            if dir_principal in direcoes_validas:
+                prioritarias.append(dir_principal)
+            dir_secundaria = Direcao.SUL if dy > 0 else Direcao.NORTE
+            if dir_secundaria in direcoes_validas:
+                prioritarias.append(dir_secundaria)
+        else:
+            dir_principal = Direcao.SUL if dy > 0 else Direcao.NORTE
+            if dir_principal in direcoes_validas:
+                prioritarias.append(dir_principal)
+            dir_secundaria = Direcao.ESTE if dx > 0 else Direcao.OESTE
+            if dir_secundaria in direcoes_validas:
+                prioritarias.append(dir_secundaria)
+        
+        return prioritarias if prioritarias else direcoes_validas
     
     def observacao(self, obs: Observacao, recompensa: float = 0.0):
         """
@@ -163,6 +224,7 @@ class AgenteQLearning(Agente):
     def _melhor_acao_q(self, estado: str) -> Direcao:
         """
         Retorna a ação com maior valor Q para um estado
+        Considera apenas ações válidas se possível
         
         Args:
             estado: Estado atual
@@ -171,11 +233,40 @@ class AgenteQLearning(Agente):
             Melhor ação (direção)
         """
         if estado not in self.Q:
+            # Se não conhece o estado, usar direção para objetivo
+            if self.observacao_atual:
+                dados = self.observacao_atual.dados
+                direcoes_validas = self._direcoes_validas(dados)
+                direcoes_prioritarias = self._direcoes_para_objetivo(dados, direcoes_validas)
+                if direcoes_prioritarias:
+                    return direcoes_prioritarias[0]
+                elif direcoes_validas:
+                    return direcoes_validas[0]
             return random.choice(self.acoes_disponiveis)
         
         # Encontrar ação com maior Q-value
         melhor_acao_nome = max(self.Q[estado], key=self.Q[estado].get)
-        return Direcao[melhor_acao_nome]
+        melhor_acao = Direcao[melhor_acao_nome]
+        
+        # Verificar se ação é válida
+        if self.observacao_atual:
+            dados = self.observacao_atual.dados
+            direcoes_validas = self._direcoes_validas(dados)
+            if melhor_acao in direcoes_validas:
+                return melhor_acao
+            # Se melhor ação não é válida, escolher melhor válida
+            elif direcoes_validas:
+                melhor_valida = None
+                melhor_q = float('-inf')
+                for dir in direcoes_validas:
+                    q_val = self.Q[estado].get(dir.name, 0.0)
+                    if q_val > melhor_q:
+                        melhor_q = q_val
+                        melhor_valida = dir
+                if melhor_valida:
+                    return melhor_valida
+        
+        return melhor_acao
     
     def _processar_recompensa(self, recompensa: float):
         """
