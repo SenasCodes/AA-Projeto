@@ -1,8 +1,8 @@
 {
   "modo_operacao": "aprendizagem",
   "passos_totais": 150,
-  "delay_entre_passos": 0.1,
-  "num_episodios": 1,
+  "delay_entre_passos": 0.001,
+  "num_episodios": 100,
   "usar_visualizacao": true,
 
   "ambiente": {

@@ -27,7 +27,11 @@ class AgenteEvolucionario(Agente):
         self.acoes_disponiveis = [Direcao.NORTE, Direcao.SUL, Direcao.ESTE, Direcao.OESTE]
         
         # Parâmetros genéticos
-        self.taxa_mutacao = parametros.get('taxa_mutacao', 0.01) if parametros else 0.01
+        self.taxa_mutacao = parametros.get('taxa_mutacao', 0.05) if parametros else 0.05
+        
+        # Garantir que num_steps está definido
+        if not hasattr(self, 'num_steps') or self.num_steps is None:
+            self.num_steps = parametros.get('num_steps', 100) if parametros else 100
         
         # Gerar genótipo aleatório se não fornecido
         if self.genotype is None:
@@ -38,6 +42,12 @@ class AgenteEvolucionario(Agente):
         # Métricas específicas do genético
         self.recursos_coletados = 0
         self.objetivos_alcancados = 0
+        
+        # Histórico de desempenho para evolução
+        self.historico_fitness: List[float] = []
+        self.episodio_atual = 0
+        self.melhor_fitness = float('-inf')
+        self.genotipo_melhor = None
     
     def age(self) -> Acao:
         """
@@ -88,6 +98,26 @@ class AgenteEvolucionario(Agente):
         
         return self.objective_fitness
     
+    def avaliacaoEstadoAtual(self, recompensa: float = None) -> float:
+        """
+        Avalia estado atual e rastreia objetivos alcançados
+        
+        Args:
+            recompensa: Recompensa recebida
+            
+        Returns:
+            Fitness total
+        """
+        # Chamar método da classe base
+        fitness = super().avaliacaoEstadoAtual(recompensa)
+        
+        # Rastrear objetivos alcançados (baseado em recompensas altas de chegada)
+        # Com as novas recompensas escalonadas, threshold ajustado
+        if recompensa is not None and recompensa >= 8.0:  # Recompensa de chegada
+            self.objetivos_alcancados += 1
+        
+        return fitness
+    
     def clonar(self, novo_id: str) -> 'AgenteEvolucionario':
         """
         Cria um clone do agente com o mesmo genótipo
@@ -131,6 +161,88 @@ class AgenteEvolucionario(Agente):
         self.passo_atual = 0
         self.recursos_coletados = 0
         self.objetivos_alcancados = 0
+    
+    def fim_episodio(self):
+        """
+        Chamado no final de cada episódio
+        Calcula fitness e evolui o genótipo se necessário
+        """
+        self.episodio_atual += 1
+        
+        # Calcular fitness objetivo
+        self.calculate_objective_fitness()
+        fitness_atual = self.objective_fitness
+        
+        # Guardar histórico
+        self.historico_fitness.append(fitness_atual)
+        
+        # Atualizar melhor genótipo
+        if fitness_atual > self.melhor_fitness:
+            self.melhor_fitness = fitness_atual
+            self.genotipo_melhor = self.genotype.copy()
+        
+        # Evoluir genótipo baseado no desempenho
+        self._evoluir_genotipo()
+    
+    def _evoluir_genotipo(self):
+        """
+        Evolui o genótipo baseado no desempenho
+        Usa estratégia simples: mutação adaptativa + elitismo
+        """
+        # Se não há histórico suficiente, não evolui
+        if len(self.historico_fitness) < 2:
+            return
+        
+        # Calcular média de fitness dos últimos episódios
+        episodios_recentes = min(5, len(self.historico_fitness))
+        fitness_medio = sum(self.historico_fitness[-episodios_recentes:]) / episodios_recentes
+        fitness_atual = self.historico_fitness[-1]
+        
+        # Se desempenho está piorando, aumentar mutação
+        if len(self.historico_fitness) >= 3:
+            fitness_anterior = self.historico_fitness[-2]
+            if fitness_atual < fitness_anterior:
+                # Aumentar taxa de mutação temporariamente
+                taxa_mutacao_adaptativa = self.taxa_mutacao * 2.0
+            else:
+                taxa_mutacao_adaptativa = self.taxa_mutacao
+        else:
+            taxa_mutacao_adaptativa = self.taxa_mutacao
+        
+        # Se fitness atual está abaixo da média, aplicar mutação mais agressiva
+        if fitness_atual < fitness_medio:
+            # Mutação mais agressiva: 30% dos genes
+            num_mutacoes = max(1, int(len(self.genotype) * 0.3))
+            indices = random.sample(range(len(self.genotype)), min(num_mutacoes, len(self.genotype)))
+            for i in indices:
+                self.genotype[i] = random.choice(self.acoes_disponiveis)
+        else:
+            # Mutação normal
+            self.mutate(taxa_mutacao_adaptativa)
+        
+        # Elitismo: se fitness caiu muito, restaurar melhor genótipo
+        if self.genotipo_melhor and fitness_atual < self.melhor_fitness * 0.5:
+            # Restaurar 50% do melhor genótipo
+            # Garantir que genotipo_melhor tem tamanho compatível
+            tamanho_atual = len(self.genotype)
+            tamanho_melhor = len(self.genotipo_melhor)
+            
+            if tamanho_melhor > 0:
+                # Usar o tamanho mínimo para evitar index out of range
+                tamanho_usar = min(tamanho_atual, tamanho_melhor)
+                num_genes_restaurar = tamanho_usar // 2
+                
+                if num_genes_restaurar > 0:
+                    indices = random.sample(range(tamanho_usar), num_genes_restaurar)
+                    for i in indices:
+                        if i < len(self.genotype) and i < len(self.genotipo_melhor):
+                            self.genotype[i] = self.genotipo_melhor[i]
+        
+        # Ajustar tamanho do genótipo se necessário (crescer se muito curto)
+        if self.passo_atual >= len(self.genotype) - 5 and len(self.historico_fitness) % 10 == 0:
+            # Adicionar mais genes se genótipo está muito curto
+            genes_extras = [random.choice(self.acoes_disponiveis) for _ in range(10)]
+            self.genotype.extend(genes_extras)
 
 
 # Alias para compatibilidade (AgenteGenetico = AgenteEvolucionario)

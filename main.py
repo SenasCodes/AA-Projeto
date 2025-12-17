@@ -29,12 +29,25 @@ def main():
         # Criar simulação
         simulacao = cria(args.config)
         
-        # Configurar visualização
+        # Configurar visualização (flags da linha de comando têm prioridade absoluta)
         if args.visualizacao:
+            # Forçar visualização
             simulacao.usar_visualizacao = True
             simulacao._inicializar_visualizacao()
+            print("   Visualização: Ativada (via flag --visualizacao)")
         elif args.sem_visualizacao:
+            # Desativar visualização explicitamente
             simulacao.usar_visualizacao = False
+            if simulacao.visualizador:
+                simulacao.visualizador.fechar()
+                simulacao.visualizador = None
+            print("   Visualização: Desativada (via flag --sem-visualizacao)")
+        else:
+            # Padrão: sem visualização (ignorar qualquer valor no JSON)
+            simulacao.usar_visualizacao = False
+            if simulacao.visualizador:
+                simulacao.visualizador.fechar()
+                simulacao.visualizador = None
         
         # Executar simulação
         simulacao.executa()
