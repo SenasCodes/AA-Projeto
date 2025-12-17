@@ -1,4 +1,5 @@
 {
+  "modo_operacao": "aprendizagem",
   "passos_totais": 150,
   "delay_entre_passos": 0.1,
   "num_episodios": 1,
@@ -17,13 +18,16 @@
 
   "agentes": [
     {
-      "id": "agente1",
-      "tipo": "reativo",
+      "id": "genetico_labirinto",
+      "tipo": "genetico",
       "posicao_inicial": {"x": 0, "y": 0},
-      "parametros": {}
+      "parametros": {
+        "taxa_mutacao": 0.05,
+        "tamanho_populacao": 20,
+        "num_geracoes": 30}
     },
     {
-      "id": "agente2",
+      "id": "qlearning_labirinto",
       "tipo": "qlearning",
       "posicao_inicial": {"x": 0, "y": 0},
       "parametros": {
