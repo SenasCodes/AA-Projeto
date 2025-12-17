@@ -6,6 +6,7 @@ Agentes devem encontrar o caminho do início ao fim
 from ambiente import Ambiente, Posicao, Observacao, Direcao, Acao
 import random
 from typing import Set, List, Dict
+from collections import deque
 
 
 class AmbienteLabirinto(Ambiente):
@@ -48,17 +49,67 @@ class AmbienteLabirinto(Ambiente):
         })
     
     def _gerar_paredes(self):
-        """Gera paredes aleatórias no labirinto"""
+        """Gera paredes aleatórias no labirinto garantindo que há caminho"""
         num_paredes = int(self.largura * self.altura * self.densidade_paredes)
+        max_tentativas = 10  # Tentar até 10 vezes gerar um labirinto válido
         
-        for _ in range(num_paredes):
+        for tentativa in range(max_tentativas):
+            self.paredes.clear()
+            
+            for _ in range(num_paredes):
+                x = random.randint(0, self.largura - 1)
+                y = random.randint(0, self.altura - 1)
+                pos = Posicao(x, y)
+                
+                # Não colocar parede no início ou fim
+                if pos != self.pos_inicio and pos != self.pos_fim:
+                    self.paredes.add(pos)
+            
+            # Verificar se há caminho do início ao fim
+            if self._tem_caminho(self.pos_inicio, self.pos_fim):
+                print(f"   ✅ Labirinto solucionável gerado (tentativa {tentativa + 1})")
+                return
+        
+        # Se não conseguiu gerar labirinto válido, gerar um mais simples
+        print(f"   ⚠️  Gerando labirinto simplificado (densidade reduzida)")
+        self.paredes.clear()
+        num_paredes_reduzido = num_paredes // 2
+        for _ in range(num_paredes_reduzido):
             x = random.randint(0, self.largura - 1)
             y = random.randint(0, self.altura - 1)
             pos = Posicao(x, y)
-            
-            # Não colocar parede no início ou fim
             if pos != self.pos_inicio and pos != self.pos_fim:
                 self.paredes.add(pos)
+    
+    def _tem_caminho(self, origem: Posicao, destino: Posicao) -> bool:
+        """Verifica se há caminho entre duas posições usando BFS"""
+        if origem == destino:
+            return True
+        
+        visitados = set()
+        fila = deque([origem])
+        visitados.add((origem.x, origem.y))
+        
+        while fila:
+            pos_atual = fila.popleft()
+            
+            # Verificar vizinhos
+            for direcao in [Direcao.NORTE, Direcao.SUL, Direcao.ESTE, Direcao.OESTE]:
+                pos_vizinha = pos_atual.mover(direcao)
+                pos_tuple = (pos_vizinha.x, pos_vizinha.y)
+                
+                # Verificar se posição é válida e não visitada
+                if (self.posicao_valida(pos_vizinha) and
+                    pos_vizinha not in self.paredes and
+                    pos_tuple not in visitados):
+                    
+                    if pos_vizinha == destino:
+                        return True
+                    
+                    visitados.add(pos_tuple)
+                    fila.append(pos_vizinha)
+        
+        return False
     
     def observacao_para(self, agente_id: str) -> Observacao:
         """Retorna observação para o agente"""

@@ -6,6 +6,7 @@ Agentes recolhem recursos e depositam em ninhos
 from ambiente import Ambiente, Posicao, Observacao, Direcao, Acao
 import random
 from typing import Dict, Set, List
+from collections import deque
 
 
 class AmbienteForaging(Ambiente):
@@ -26,12 +27,16 @@ class AmbienteForaging(Ambiente):
         
         # Obstáculos
         self.obstaculos: Set[Posicao] = set()
-        if com_obstaculos:
-            self._gerar_obstaculos()
         
-        # Gerar recursos e ninhos
-        self._gerar_recursos()
+        # Gerar ninhos primeiro (para validar acessibilidade)
         self._gerar_ninhos()
+        
+        # Gerar obstáculos (se habilitado)
+        if com_obstaculos:
+            self._gerar_obstaculos_validos()
+        
+        # Gerar recursos
+        self._gerar_recursos_acessiveis()
         
         # Métricas
         self.metricas.update({
@@ -41,34 +46,108 @@ class AmbienteForaging(Ambiente):
             'tempo_medio_coleta': 0
         })
     
-    def _gerar_obstaculos(self):
-        """Gera obstáculos aleatórios"""
+    def _gerar_obstaculos_validos(self):
+        """Gera obstáculos garantindo acessibilidade aos ninhos"""
         num_obstaculos = (self.largura * self.altura) // 15
-        for _ in range(num_obstaculos):
+        obstaculos_gerados = 0
+        tentativas = 0
+        max_tentativas = num_obstaculos * 3
+        
+        while obstaculos_gerados < num_obstaculos and tentativas < max_tentativas:
             x = random.randint(0, self.largura - 1)
             y = random.randint(0, self.altura - 1)
             pos = Posicao(x, y)
-            if pos not in self.recursos:
+            
+            # Não colocar obstáculo em ninhos ou recursos
+            if pos not in self.ninhos and pos not in self.recursos:
+                # Testar se ainda há caminho para os ninhos
                 self.obstaculos.add(pos)
-    
-    def _gerar_recursos(self):
-        """Gera recursos aleatórios no ambiente"""
-        self.recursos.clear()
-        for _ in range(self.num_recursos):
-            tentativas = 0
-            while tentativas < 100:
-                x = random.randint(0, self.largura - 1)
-                y = random.randint(0, self.altura - 1)
-                pos = Posicao(x, y)
                 
-                # Verificar se posição é válida (não é obstáculo, não tem recurso)
-                if (pos not in self.obstaculos and 
-                    pos not in self.recursos and
-                    pos not in self.ninhos):
-                    # Valor aleatório entre 1 e 5
-                    self.recursos[pos] = random.randint(1, 5)
+                # Verificar se todos os ninhos ainda são acessíveis
+                todos_acessiveis = True
+                for ninho in self.ninhos:
+                    if not self._posicao_acessivel(ninho):
+                        todos_acessiveis = False
+                        break
+                
+                if todos_acessiveis:
+                    obstaculos_gerados += 1
+                else:
+                    # Remover obstáculo se bloqueou acesso
+                    self.obstaculos.discard(pos)
+            
+            tentativas += 1
+        
+        print(f"   ✅ Foraging: {obstaculos_gerados} obstáculos gerados (acessíveis)")
+    
+    def _gerar_recursos_acessiveis(self):
+        """Gera recursos aleatórios garantindo que são acessíveis"""
+        self.recursos.clear()
+        recursos_gerados = 0
+        tentativas_totais = 0
+        max_tentativas = self.num_recursos * 5
+        
+        while recursos_gerados < self.num_recursos and tentativas_totais < max_tentativas:
+            x = random.randint(0, self.largura - 1)
+            y = random.randint(0, self.altura - 1)
+            pos = Posicao(x, y)
+            
+            # Verificar se posição é válida e acessível
+            if (pos not in self.obstaculos and 
+                pos not in self.recursos and
+                pos not in self.ninhos and
+                self._posicao_acessivel(pos)):
+                # Valor aleatório entre 1 e 5
+                self.recursos[pos] = random.randint(1, 5)
+                recursos_gerados += 1
+            
+            tentativas_totais += 1
+        
+        if recursos_gerados < self.num_recursos:
+            print(f"   ⚠️  Foraging: apenas {recursos_gerados}/{self.num_recursos} recursos gerados")
+    
+    def _posicao_acessivel(self, destino: Posicao) -> bool:
+        """Verifica se uma posição é acessível a partir de qualquer ponto livre usando BFS"""
+        # Começar de uma posição livre qualquer
+        origem = None
+        for x in range(self.largura):
+            for y in range(self.altura):
+                pos = Posicao(x, y)
+                if (self.posicao_valida(pos) and 
+                    pos not in self.obstaculos and
+                    pos != destino):
+                    origem = pos
                     break
-                tentativas += 1
+            if origem:
+                break
+        
+        if not origem:
+            return True  # Se não há posições livres, aceitar
+        
+        # BFS da origem ao destino
+        visitados = set()
+        fila = deque([origem])
+        visitados.add((origem.x, origem.y))
+        
+        while fila:
+            pos_atual = fila.popleft()
+            
+            if pos_atual == destino:
+                return True
+            
+            # Verificar vizinhos
+            for direcao in [Direcao.NORTE, Direcao.SUL, Direcao.ESTE, Direcao.OESTE]:
+                pos_vizinha = pos_atual.mover(direcao)
+                pos_tuple = (pos_vizinha.x, pos_vizinha.y)
+                
+                if (self.posicao_valida(pos_vizinha) and
+                    pos_vizinha not in self.obstaculos and
+                    pos_tuple not in visitados):
+                    
+                    visitados.add(pos_tuple)
+                    fila.append(pos_vizinha)
+        
+        return False
     
     def _gerar_ninhos(self):
         """Gera ninhos (pontos de entrega)"""
@@ -236,8 +315,8 @@ class AmbienteForaging(Ambiente):
         """Reinicia o ambiente"""
         super().reset()
         
-        # Regenerar recursos e ninhos
-        self._gerar_recursos()
+        # Regenerar recursos (acessíveis)
+        self._gerar_recursos_acessiveis()
         if not self.ninhos:
             self._gerar_ninhos()
         
