@@ -1,4 +1,5 @@
 {
+  "modo_operacao": "aprendizagem",
   "passos_totais": 200,
   "delay_entre_passos": 0.05,
   "num_episodios": 1,
@@ -17,13 +18,17 @@
 
   "agentes": [
     {
-      "id": "agente1",
-      "tipo": "reativo",
+      "id": "genetico_foraging",
+      "tipo": "genetico",
       "posicao_inicial": {"x": 2, "y": 2},
-      "parametros": {}
+      "parametros": {
+        "taxa_mutacao": 0.05,
+        "tamanho_populacao": 20,
+        "num_geracoes": 30
+      }
     },
     {
-      "id": "agente2",
+      "id": "qlearning_foraging",
       "tipo": "qlearning",
       "posicao_inicial": {"x": 12, "y": 12},
       "parametros": {

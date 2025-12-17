@@ -1,0 +1,39 @@
+{
+  "passos_totais": 200,
+  "delay_entre_passos": 0.05,
+  "num_episodios": 1,
+  "usar_visualizacao": true,
+
+  "ambiente": {
+    "tipo": "FORAGING",
+    "parametros": {
+      "largura": 15,
+      "altura": 15,
+      "num_recursos": 20,
+      "num_ninhos": 1,
+      "com_obstaculos": true
+    }
+  },
+
+  "agentes": [
+    {
+      "id": "agente_reativo",
+      "tipo": "reativo",
+      "posicao_inicial": {"x": 2, "y": 2},
+      "parametros": {
+        "politica": "foraging_basico"
+      }
+    },
+    {
+      "id": "agente_qlearning",
+      "tipo": "qlearning",
+      "posicao_inicial": {"x": 12, "y": 12},
+      "parametros": {
+        "modo_aprendizagem": false,
+        "ficheiro_modelo": "configs/modelos/foraging_qlearning_treinado.json",
+        "epsilon": 0.0
+      }
+    }
+  ]
+}
+

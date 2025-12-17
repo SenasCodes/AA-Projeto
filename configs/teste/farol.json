@@ -1,0 +1,37 @@
+{
+  "modo_operacao": "aprendizagem",
+  "passos_totais": 100,
+  "delay_entre_passos": 0.1,
+  "num_episodios": 50,
+  "usar_visualizacao": false,
+
+  "ambiente": {
+    "tipo": "FAROL",
+    "parametros": {
+      "largura": 10,
+      "altura": 10,
+      "com_obstaculos": true
+    }
+  },
+
+  "agentes": [
+    {
+      "id": "agente_reativo",
+      "tipo": "reativo",
+      "posicao_inicial": {"x": 1, "y": 1},
+      "parametros": {
+        "politica": "ir_para_farol"
+      }
+    },
+    {
+      "id": "agente_qlearning",
+      "tipo": "qlearning",
+      "posicao_inicial": {"x": 8, "y": 8},
+      "parametros": {
+        "modo_aprendizagem": false,
+        "ficheiro_modelo": "configs/modelos/farol_qlearning_treinado.json",
+        "epsilon": 0.0
+      }
+    }
+  ]
+}

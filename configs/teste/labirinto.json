@@ -1,0 +1,39 @@
+{
+  "passos_totais": 150,
+  "delay_entre_passos": 0.1,
+  "num_episodios": 1,
+  "usar_visualizacao": true,
+
+  "ambiente": {
+    "tipo": "LABIRINTO",
+    "parametros": {
+      "largura": 12,
+      "altura": 12,
+      "densidade_paredes": 0.3,
+      "pos_inicio": {"x": 0, "y": 0},
+      "pos_fim": {"x": 11, "y": 11}
+    }
+  },
+
+  "agentes": [
+    {
+      "id": "agente_reativo",
+      "tipo": "reativo",
+      "posicao_inicial": {"x": 0, "y": 0},
+      "parametros": {
+        "politica": "ir_para_fim"
+      }
+    },
+    {
+      "id": "agente_qlearning",
+      "tipo": "qlearning",
+      "posicao_inicial": {"x": 0, "y": 0},
+      "parametros": {
+        "modo_aprendizagem": false,
+        "ficheiro_modelo": "configs/modelos/labirinto_qlearning_treinado.json",
+        "epsilon": 0.0
+      }
+    }
+  ]
+}
+

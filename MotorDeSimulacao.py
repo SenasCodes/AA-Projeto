@@ -429,7 +429,7 @@ class MotorDeSimulacao:
             
             print(f"    Recompensa final: {stats['recompensa_acumulada']:.2f}")
             print(f"    Espaços explorados: {stats['espacos_explorados']}")
-        
+
         # Taxa de sucesso
         sucessos = sum(1 for e in self.historico_episodios if e['agentes_no_farol'] > 0)
         taxa = sucessos/len(self.historico_episodios)*100 if self.historico_episodios else 0
@@ -437,6 +437,26 @@ class MotorDeSimulacao:
         print(f"  Episódios com chegada ao farol: {sucessos}/{len(self.historico_episodios)} ({taxa:.1f}%)")
         
         print("\n" + "="*60)
+
+        # SALVAR MODELOS SE FOI TREINO MULTI-EPISÓDIO
+        if self.num_episodios > 1 and hasattr(self, 'ambiente'):
+            # Extrair nome do ambiente
+            nome_classe = self.ambiente.__class__.__name__
+            if 'Farol' in nome_classe:
+                nome_ambiente = 'farol'
+            elif 'Labirinto' in nome_classe:
+                nome_ambiente = 'labirinto'
+            elif 'Foraging' in nome_classe:
+                nome_ambiente = 'foraging'
+            else:
+                nome_ambiente = 'desconhecido'
+
+            # Salvar modelos dos agentes QLearning
+            for agente in self.agentes:
+                if hasattr(agente, 'salvar_q_table') and agente.__class__.__name__ == 'AgenteQLearning':
+                    modelo_path = f"configs/modelos/{nome_ambiente}_qlearning_treinado.json"
+                    agente.salvar_q_table(modelo_path)
+                    print(f"💾 Modelo treinado salvo: {modelo_path}")
 
             # OFERECER VISUALIZAÇÃO APÓS RESULTADOS
         self._oferecer_visualizacao()

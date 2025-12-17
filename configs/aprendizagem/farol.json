@@ -1,4 +1,5 @@
 {
+  "modo_operacao": "aprendizagem",
   "passos_totais": 100,
   "delay_entre_passos": 0.1,
   "num_episodios": 50,
@@ -15,13 +16,17 @@
 
   "agentes": [
     {
-      "id": "agente1",
-      "tipo": "reativo",
+      "id": "genetico_farol",
+      "tipo": "genetico",
       "posicao_inicial": {"x": 1, "y": 1},
-      "parametros": {}
+      "parametros": {
+        "taxa_mutacao": 0.05,
+        "tamanho_populacao": 20,
+        "num_geracoes": 30
+      }
     },
     {
-      "id": "agente2",
+      "id": "qlearning_farol",
       "tipo": "qlearning",
       "posicao_inicial": {"x": 8, "y": 8},
       "parametros": {
