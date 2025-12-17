@@ -24,7 +24,10 @@ class FabricaAmbientes:
                 largura=parametros.get('largura', 10),
                 altura=parametros.get('altura', 10),
                 pos_farol=pos_farol,
-                com_obstaculos=parametros.get('com_obstaculos', False)
+                com_obstaculos=parametros.get('com_obstaculos', False),
+                mover_farol=parametros.get('mover_farol', True),
+                mover_obstaculos=parametros.get('mover_obstaculos', True),
+                intervalo_movimento=parametros.get('intervalo_movimento', 20)
             )
 
         elif tipo == TipoAmbiente.FORAGING:

@@ -26,6 +26,7 @@ class AmbienteForaging(Ambiente):
         
         # Obstáculos
         self.obstaculos: Set[Posicao] = set()
+        self.com_obstaculos = com_obstaculos
         if com_obstaculos:
             self._gerar_obstaculos()
         
@@ -41,15 +42,30 @@ class AmbienteForaging(Ambiente):
             'tempo_medio_coleta': 0
         })
     
+    def _obter_posicoes_ocupadas(self) -> Set[Posicao]:
+        """Retorna conjunto de posições ocupadas (recursos + ninhos + agentes)"""
+        ocupadas = set()
+        ocupadas.update(self.recursos.keys())
+        ocupadas.update(self.ninhos)
+        for agente_id, info in self.agentes.items():
+            ocupadas.add(info['posicao'])
+        return ocupadas
+    
     def _gerar_obstaculos(self):
-        """Gera obstáculos aleatórios"""
+        """Gera obstáculos aleatórios, evitando recursos, ninhos e agentes"""
+        posicoes_ocupadas = self._obter_posicoes_ocupadas()
         num_obstaculos = (self.largura * self.altura) // 15
-        for _ in range(num_obstaculos):
+        tentativas = 0
+        max_tentativas = num_obstaculos * 10
+        
+        self.obstaculos.clear()
+        while len(self.obstaculos) < num_obstaculos and tentativas < max_tentativas:
             x = random.randint(0, self.largura - 1)
             y = random.randint(0, self.altura - 1)
             pos = Posicao(x, y)
-            if pos not in self.recursos:
+            if pos not in posicoes_ocupadas:
                 self.obstaculos.add(pos)
+            tentativas += 1
     
     def _gerar_recursos(self):
         """Gera recursos aleatórios no ambiente"""
@@ -169,7 +185,35 @@ class AmbienteForaging(Ambiente):
                     nova_pos not in self.obstaculos):
                 agente_info['posicao'] = nova_pos
                 agente_info['historico_posicoes'].append(nova_pos)
-                recompensa = 0.01  # Pequena recompensa por movimento
+                
+                recursos_carregados = agente_info.get('recursos', 0)
+                
+                # Recompensa baseada no objetivo do agente
+                # Se tem recurso, deve ir para ninho; se não tem, deve ir para recurso
+                if recursos_carregados > 0:
+                    # Tem recurso: recompensa maior se está se aproximando de um ninho
+                    dist_ninho_min = min([pos_atual.distancia(ninho) for ninho in self.ninhos], default=float('inf'))
+                    dist_ninho_nova = min([nova_pos.distancia(ninho) for ninho in self.ninhos], default=float('inf'))
+                    if dist_ninho_nova < dist_ninho_min:
+                        recompensa = 0.5  # Recompensa por aproximar-se do ninho
+                    elif dist_ninho_nova > dist_ninho_min:
+                        recompensa = -0.2  # Penalização por afastar-se do ninho
+                    else:
+                        recompensa = 0.01  # Pequena recompensa por movimento
+                else:
+                    # Não tem recurso: recompensa maior se está se aproximando de um recurso
+                    if self.recursos:
+                        dist_recurso_min = min([pos_atual.distancia(recurso) for recurso in self.recursos.keys()], default=float('inf'))
+                        dist_recurso_nova = min([nova_pos.distancia(recurso) for recurso in self.recursos.keys()], default=float('inf'))
+                        if dist_recurso_nova < dist_recurso_min:
+                            recompensa = 0.5  # Recompensa por aproximar-se de recurso
+                        elif dist_recurso_nova > dist_recurso_min:
+                            recompensa = -0.1  # Pequena penalização por afastar-se
+                        else:
+                            recompensa = 0.01  # Pequena recompensa por movimento
+                    else:
+                        # Sem recursos disponíveis, recompensa mínima
+                        recompensa = 0.01
             else:
                 recompensa = -0.1  # Penalização por movimento inválido
         
@@ -211,35 +255,23 @@ class AmbienteForaging(Ambiente):
         """Atualiza o ambiente"""
         self.passo_atual += 1
         
-        # Repor recursos periodicamente (a cada 50 passos)
-        if self.passo_atual % 50 == 0 and len(self.recursos) < self.num_recursos:
-            recursos_faltantes = self.num_recursos - len(self.recursos)
-            for _ in range(min(recursos_faltantes, 5)):
-                tentativas = 0
-                while tentativas < 50:
-                    x = random.randint(0, self.largura - 1)
-                    y = random.randint(0, self.altura - 1)
-                    pos = Posicao(x, y)
-                    
-                    if (pos not in self.obstaculos and 
-                        pos not in self.recursos and
-                        pos not in self.ninhos and
-                        pos not in [info['posicao'] for info in self.agentes.values()]):
-                        self.recursos[pos] = random.randint(1, 5)
-                        break
-                    tentativas += 1
+        # NOTA: Recursos e obstáculos são regenerados apenas no reset do episódio
+        # Não há mudanças durante a simulação
         
         # Condição de terminação: todos os recursos coletados e depositados
         # (ou tempo limite atingido - controlado externamente)
     
     def reset(self):
-        """Reinicia o ambiente"""
+        """Reinicia o ambiente e regenera recursos, ninhos e obstáculos"""
         super().reset()
         
-        # Regenerar recursos e ninhos
+        # Regenerar recursos e ninhos (novas posições a cada episódio)
         self._gerar_recursos()
-        if not self.ninhos:
-            self._gerar_ninhos()
+        self._gerar_ninhos()
+        
+        # Regenerar obstáculos se necessário (garantindo que não tapem recursos, ninhos nem agentes)
+        if self.com_obstaculos:
+            self._gerar_obstaculos()
         
         # Resetar métricas
         self.metricas.update({

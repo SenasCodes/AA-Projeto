@@ -42,6 +42,9 @@ class MotorDeSimulacao:
         self.delay_entre_passos = self.parametros.get('delay_entre_passos', 0.1)
         self.num_episodios = self.parametros.get('num_episodios', 1)
         self.episodio_atual = 0
+        
+        # Modo de operação (aprendizagem ou teste)
+        self.modo_operacao = self.parametros.get('modo_operacao', 'teste').lower()
 
         # Métricas
         self.metricas = {
@@ -83,15 +86,15 @@ class MotorDeSimulacao:
             # Configurar agentes
             motor._configurar_agentes(parametros.get('agentes', []))
             
-            # Inicializar visualização se solicitado
-            if motor.usar_visualizacao:
-                motor._inicializar_visualizacao()
+            # NOTA: Visualização NÃO é inicializada aqui automaticamente
+            # Deve ser ativada explicitamente via flag --visualizacao no main.py
+            # Isso permite controle total pela linha de comando
+            # Desativar visualização por padrão (será ativada apenas se flag for usado)
+            motor.usar_visualizacao = False
 
             print(f"✅ Simulação criada a partir de {nome_do_ficheiro_parametros}")
             print(f"   Ambiente: {type(motor.ambiente).__name__}")
             print(f"   Agentes: {len(motor.agentes)}")
-            if motor.usar_visualizacao:
-                print(f"   Visualização: Ativada")
 
             return motor
 
@@ -124,6 +127,7 @@ class MotorDeSimulacao:
             agente_id = config.get('id', f'agente_{i}')
 
             # Criar agente usando a fábrica
+            # (O carregamento de modelo é feito automaticamente no __init__ do agente se especificado)
             agente = FabricaAgentes.criar_agente(
                 tipo,
                 agente_id,
@@ -452,9 +456,15 @@ class MotorDeSimulacao:
                 nome_ambiente = 'desconhecido'
 
             # Salvar modelos dos agentes QLearning
+            import os
+            pasta_modelos = "configs/modelos"
+            if not os.path.exists(pasta_modelos):
+                os.makedirs(pasta_modelos, exist_ok=True)
+                print(f"📁 Pasta de modelos criada: {pasta_modelos}")
+            
             for agente in self.agentes:
                 if hasattr(agente, 'salvar_q_table') and agente.__class__.__name__ == 'AgenteQLearning':
-                    modelo_path = f"configs/modelos/{nome_ambiente}_qlearning_treinado.json"
+                    modelo_path = f"{pasta_modelos}/{nome_ambiente}_qlearning_treinado.json"
                     agente.salvar_q_table(modelo_path)
                     print(f"💾 Modelo treinado salvo: {modelo_path}")
 

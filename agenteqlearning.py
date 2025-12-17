@@ -38,6 +38,15 @@ class AgenteQLearning(Agente):
         # Q-table: Dict[estado, Dict[ação, valor_Q]]
         self.Q: Dict[str, Dict[str, float]] = {}
         
+        # Carregar modelo pré-treinado se especificado
+        if parametros and 'ficheiro_modelo' in parametros:
+            ficheiro_modelo = parametros['ficheiro_modelo']
+            self.carregar_q_table(ficheiro_modelo)
+            # Se modelo foi carregado com sucesso e está em modo teste, desativar exploração
+            if self.Q and not self.modo_aprendizagem:
+                self.epsilon = 0.0  # Sem exploração em modo teste
+                print(f"[{self.agente_id}] Modo: Teste (modelo carregado)")
+        
         # Estatísticas de aprendizagem
         self.episodio_atual = 0
         self.episodios_totais = parametros.get('episodios_totais', 1000) if parametros else 1000
@@ -336,6 +345,13 @@ class AgenteQLearning(Agente):
         Args:
             ficheiro: Caminho do ficheiro
         """
+        import os
+        # Criar diretório se não existir
+        diretorio = os.path.dirname(ficheiro)
+        if diretorio and not os.path.exists(diretorio):
+            os.makedirs(diretorio, exist_ok=True)
+            print(f"📁 Diretório criado: {diretorio}")
+        
         with open(ficheiro, 'w', encoding='utf-8') as f:
             json.dump(self.Q, f, indent=2)
         print(f"[{self.agente_id}] Q-table salva: {ficheiro} ({len(self.Q)} estados)")
@@ -347,9 +363,21 @@ class AgenteQLearning(Agente):
         Args:
             ficheiro: Caminho do ficheiro
         """
-        with open(ficheiro, 'r', encoding='utf-8') as f:
-            self.Q = json.load(f)
-        print(f"[{self.agente_id}] Q-table carregada: {ficheiro} ({len(self.Q)} estados)")
+        import os
+        if not os.path.exists(ficheiro):
+            print(f"⚠️  [{self.agente_id}] Modelo não encontrado: {ficheiro}")
+            print(f"   Iniciando com Q-table vazia (modo aprendizagem)")
+            self.Q = {}
+            return
+        
+        try:
+            with open(ficheiro, 'r', encoding='utf-8') as f:
+                self.Q = json.load(f)
+            print(f"[{self.agente_id}] Q-table carregada: {ficheiro} ({len(self.Q)} estados)")
+        except Exception as e:
+            print(f"⚠️  [{self.agente_id}] Erro ao carregar modelo: {e}")
+            print(f"   Iniciando com Q-table vazia (modo aprendizagem)")
+            self.Q = {}
     
     def obter_estatisticas_aprendizagem(self) -> Dict[str, Any]:
         """
