@@ -1,0 +1,4 @@
+# Esta pasta armazena os modelos treinados (Q-tables) dos agentes
+# Os modelos são salvos automaticamente após treino multi-episódio
+# Formato: {ambiente}_qlearning_treinado.json
+
