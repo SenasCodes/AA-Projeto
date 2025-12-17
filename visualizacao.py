@@ -54,6 +54,34 @@ class Visualizador:
         self.pausado = False
         self.velocidade = 10  # FPS
         
+        # Mapeamento de agentes para tipos
+        self.tipos_agentes: Dict[str, str] = {}
+    
+    def _obter_tipo_agente(self, agente_id: str, agentes: List[Agente] = None) -> str:
+        """Retorna o tipo do agente como abreviação"""
+        # Verificar se já temos o tipo em cache
+        if agente_id in self.tipos_agentes:
+            return self.tipos_agentes[agente_id]
+        
+        # Tentar encontrar o agente na lista
+        if agentes:
+            for agente in agentes:
+                if agente.agente_id == agente_id:
+                    tipo_classe = type(agente).__name__
+                    if 'QLearning' in tipo_classe or 'Q-Learning' in tipo_classe:
+                        tipo = "QL"
+                    elif 'Evolucionario' in tipo_classe or 'Genetico' in tipo_classe:
+                        tipo = "AG"
+                    elif 'Reativo' in tipo_classe:
+                        tipo = "RE"
+                    else:
+                        tipo = agente_id[:2].upper()
+                    self.tipos_agentes[agente_id] = tipo
+                    return tipo
+        
+        # Fallback: usar primeiras letras do ID
+        return agente_id[:2].upper()
+        
     def desenhar_ambiente_farol(self):
         """Desenha ambiente do tipo Farol"""
         # Desenhar grid
@@ -101,8 +129,9 @@ class Visualizador:
             x = pos.x * self.celula_largura + self.celula_largura // 2
             y = pos.y * self.celula_altura + self.celula_altura // 2
             pygame.draw.circle(self.tela, self.COR_AGENTE, (x, y), self.celula_largura // 3)
-            # Desenhar ID do agente
-            texto = self.fonte_pequena.render(agente_id[:3], True, (255, 255, 255))
+            # Desenhar tipo do agente (QL, AG, RE)
+            tipo = self._obter_tipo_agente(agente_id, None)
+            texto = self.fonte_pequena.render(tipo, True, (255, 255, 255))
             texto_rect = texto.get_rect(center=(x, y))
             self.tela.blit(texto, texto_rect)
     
@@ -165,11 +194,14 @@ class Visualizador:
             cor = (255, 100, 100) if info.get('recursos', 0) > 0 else self.COR_AGENTE
             pygame.draw.circle(self.tela, cor, (x, y), self.celula_largura // 3)
             
-            # Mostrar recursos carregados
+            # Mostrar tipo do agente ou recursos carregados
             if info.get('recursos', 0) > 0:
                 texto = self.fonte_pequena.render(str(info['recursos']), True, (255, 255, 255))
-                texto_rect = texto.get_rect(center=(x, y))
-                self.tela.blit(texto, texto_rect)
+            else:
+                tipo = self._obter_tipo_agente(agente_id, None)
+                texto = self.fonte_pequena.render(tipo, True, (255, 255, 255))
+            texto_rect = texto.get_rect(center=(x, y))
+            self.tela.blit(texto, texto_rect)
     
     def desenhar_ambiente_labirinto(self):
         """Desenha ambiente do tipo Labirinto"""
@@ -221,8 +253,9 @@ class Visualizador:
             x = pos.x * self.celula_largura + self.celula_largura // 2
             y = pos.y * self.celula_altura + self.celula_altura // 2
             pygame.draw.circle(self.tela, self.COR_AGENTE, (x, y), self.celula_largura // 3)
-            # Desenhar ID do agente
-            texto = self.fonte_pequena.render(agente_id[:3], True, (255, 255, 255))
+            # Desenhar tipo do agente (QL, AG, RE)
+            tipo = self._obter_tipo_agente(agente_id, None)
+            texto = self.fonte_pequena.render(tipo, True, (255, 255, 255))
             texto_rect = texto.get_rect(center=(x, y))
             self.tela.blit(texto, texto_rect)
     
@@ -270,6 +303,18 @@ class Visualizador:
             passo: Passo atual da simulação
             agentes: Lista de agentes (opcional)
         """
+        # Atualizar mapeamento de tipos de agentes
+        if agentes:
+            for agente in agentes:
+                tipo_classe = type(agente).__name__
+                if 'QLearning' in tipo_classe or 'Q-Learning' in tipo_classe:
+                    self.tipos_agentes[agente.agente_id] = "QL"
+                elif 'Evolucionario' in tipo_classe or 'Genetico' in tipo_classe:
+                    self.tipos_agentes[agente.agente_id] = "AG"
+                elif 'Reativo' in tipo_classe:
+                    self.tipos_agentes[agente.agente_id] = "RE"
+                else:
+                    self.tipos_agentes[agente.agente_id] = agente.agente_id[:2].upper()
         # Processar eventos
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:

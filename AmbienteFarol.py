@@ -1,22 +1,33 @@
 from ambiente import Ambiente, Posicao, Observacao, Direcao, Acao
-from typing import Set
+from typing import Set, List
 import numpy as np
+import random
 
 
 class AmbienteFarol(Ambiente):
     """Ambiente do problema do Farol"""
 
     def __init__(self, largura: int = 10, altura: int = 10,
-                 pos_farol: Posicao = None, com_obstaculos: bool = False):
+                 pos_farol: Posicao = None, com_obstaculos: bool = False,
+                 mover_farol: bool = True, mover_obstaculos: bool = True,
+                 intervalo_movimento: int = 20):
         super().__init__(largura, altura)
 
         # Posição do farol (objetivo)
         self.pos_farol = pos_farol or Posicao(largura // 2, altura // 2)
+        self.pos_farol_inicial = Posicao(self.pos_farol.x, self.pos_farol.y)
 
         # Obstáculos (opcionais)
         self.obstaculos: Set[Posicao] = set()
+        self.com_obstaculos = com_obstaculos
         if com_obstaculos:
             self._gerar_obstaculos()
+
+        # Configuração de movimento
+        self.mover_farol = mover_farol
+        self.mover_obstaculos = mover_obstaculos
+        self.intervalo_movimento = intervalo_movimento  # A cada N passos
+        self.ultimo_movimento = 0
 
         # Métricas específicas
         self.metricas.update({
@@ -25,15 +36,72 @@ class AmbienteFarol(Ambiente):
             'tempos_chegada': {}
         })
 
+    def _obter_posicoes_ocupadas(self) -> Set[Posicao]:
+        """Retorna conjunto de posições ocupadas (farol + agentes)"""
+        ocupadas = {self.pos_farol}
+        for agente_id, info in self.agentes.items():
+            ocupadas.add(info['posicao'])
+        return ocupadas
+    
     def _gerar_obstaculos(self):
-        """Gera obstáculos aleatórios no ambiente"""
+        """Gera obstáculos aleatórios no ambiente, evitando farol e agentes"""
+        posicoes_ocupadas = self._obter_posicoes_ocupadas()
         num_obstaculos = (self.largura * self.altura) // 10
-        for _ in range(num_obstaculos):
-            x = np.random.randint(0, self.largura)
-            y = np.random.randint(0, self.altura)
+        tentativas = 0
+        max_tentativas = num_obstaculos * 10
+        
+        self.obstaculos.clear()
+        while len(self.obstaculos) < num_obstaculos and tentativas < max_tentativas:
+            x = random.randint(0, self.largura - 1)
+            y = random.randint(0, self.altura - 1)
             pos = Posicao(x, y)
-            if pos != self.pos_farol:
+            if pos not in posicoes_ocupadas:
                 self.obstaculos.add(pos)
+            tentativas += 1
+    
+    def _mover_farol(self):
+        """Move o farol para uma nova posição aleatória"""
+        posicoes_ocupadas = self._obter_posicoes_ocupadas()
+        tentativas = 0
+        max_tentativas = 100
+        
+        while tentativas < max_tentativas:
+            x = random.randint(0, self.largura - 1)
+            y = random.randint(0, self.altura - 1)
+            nova_pos = Posicao(x, y)
+            
+            # Verificar se posição é válida (não ocupada e não tem obstáculo)
+            if nova_pos not in posicoes_ocupadas and nova_pos not in self.obstaculos:
+                self.pos_farol = nova_pos
+                return True
+            tentativas += 1
+        
+        return False  # Não conseguiu mover
+    
+    def _mover_obstaculos(self):
+        """Move obstáculos para novas posições"""
+        if not self.com_obstaculos:
+            return
+        
+        posicoes_ocupadas = self._obter_posicoes_ocupadas()
+        novos_obstaculos = set()
+        num_obstaculos = len(self.obstaculos)
+        tentativas = 0
+        max_tentativas = num_obstaculos * 10
+        
+        while len(novos_obstaculos) < num_obstaculos and tentativas < max_tentativas:
+            x = random.randint(0, self.largura - 1)
+            y = random.randint(0, self.altura - 1)
+            pos = Posicao(x, y)
+            
+            # Verificar se posição é válida (não ocupada, não é farol, não é obstáculo existente)
+            if (pos not in posicoes_ocupadas and 
+                pos != self.pos_farol and 
+                pos not in novos_obstaculos):
+                novos_obstaculos.add(pos)
+            tentativas += 1
+        
+        self.obstaculos = novos_obstaculos
 
     def observacao_para(self, agente_id: str) -> Observacao:
         pos_agente = self.obter_posicao_agente(agente_id)
@@ -108,6 +176,14 @@ class AmbienteFarol(Ambiente):
     def atualizacao(self):
         self.passo_atual += 1
 
+        # Mover farol e obstáculos periodicamente
+        if self.passo_atual - self.ultimo_movimento >= self.intervalo_movimento:
+            if self.mover_farol:
+                self._mover_farol()
+            if self.mover_obstaculos and self.com_obstaculos:
+                self._mover_obstaculos()
+            self.ultimo_movimento = self.passo_atual
+
         # Atualizar métricas de distâncias médias
         distancias = []
         for agente_id, info in self.agentes.items():
@@ -125,6 +201,15 @@ class AmbienteFarol(Ambiente):
     def reset(self):
         """Reinicia o ambiente para o estado inicial"""
         super().reset()
+        
+        # Restaurar posição inicial do farol
+        self.pos_farol = Posicao(self.pos_farol_inicial.x, self.pos_farol_inicial.y)
+        self.ultimo_movimento = 0
+        
+        # Regenerar obstáculos se necessário
+        if self.com_obstaculos:
+            self._gerar_obstaculos()
+        
         # Reinicializar métricas específicas do AmbienteFarol
         self.metricas.update({
             'agentes_no_farol': 0,

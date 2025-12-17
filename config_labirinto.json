@@ -2,7 +2,7 @@
   "passos_totais": 150,
   "delay_entre_passos": 0.1,
   "num_episodios": 1,
-  "usar_visualizacao": true,
+  "usar_visualizacao": false,
 
   "ambiente": {
     "tipo": "LABIRINTO",

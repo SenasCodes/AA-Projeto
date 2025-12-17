@@ -83,15 +83,13 @@ class MotorDeSimulacao:
             # Configurar agentes
             motor._configurar_agentes(parametros.get('agentes', []))
             
-            # Inicializar visualização se solicitado
-            if motor.usar_visualizacao:
-                motor._inicializar_visualizacao()
+            # NOTA: Visualização NÃO é inicializada aqui automaticamente
+            # Deve ser ativada explicitamente via flag --visualizacao no main.py
+            # Isso permite controle total pela linha de comando
 
             print(f"✅ Simulação criada a partir de {nome_do_ficheiro_parametros}")
             print(f"   Ambiente: {type(motor.ambiente).__name__}")
             print(f"   Agentes: {len(motor.agentes)}")
-            if motor.usar_visualizacao:
-                print(f"   Visualização: Ativada")
 
             return motor
 
