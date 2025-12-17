@@ -7,6 +7,8 @@ import time
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
+import self
+
 from agente import Agente, FabricaAgentes
 from ambiente import Ambiente, FabricaAmbientes, TipoAmbiente
 from FabricaAmbientes import FabricaAmbientes
@@ -361,6 +363,14 @@ class MotorDeSimulacao:
     def _mostrar_resultados(self):
         """Mostra resultados finais da simulação"""
         print("\n" + "="*60)
+        # Oferecer visualização mesmo para episódio único
+        if len(self.agentes) > 0:
+            resposta = input("\nDeseja ver gráfico de comparação de agentes? (s/n): ").strip().lower()
+            if resposta == 's':
+                from analytics import VisualizadorResultados
+                visualizador = VisualizadorResultados()
+                visualizador.plotar_comparacao_agentes(self)
+
         print("📊 RESULTADOS DA SIMULAÇÃO")
         print("="*60)
 
@@ -428,6 +438,9 @@ class MotorDeSimulacao:
         
         print("\n" + "="*60)
 
+            # OFERECER VISUALIZAÇÃO APÓS RESULTADOS
+        self._oferecer_visualizacao()
+
     def obter_metricas(self) -> Dict[str, Any]:
         """
         Retorna métricas da simulação
@@ -443,8 +456,43 @@ class MotorDeSimulacao:
                 f"passo={self.passo_atual}/{self.passos_totais}, "
                 f"agentes={len(self.agentes)}]")
 
+    def _oferecer_visualizacao(self):
+        """Oferece visualização gráfica dos resultados"""
+        from analytics import VisualizadorResultados
 
-# Função de conveniência para compatibilidade
+        print("\n📊 DESEJA VISUALIZAR GRÁFICOS DOS RESULTADOS?")
+        print("-" * 40)
+
+        resposta = input("Visualizar gráficos? (s/n): ").strip().lower()
+
+        if resposta == 's':
+            visualizador = VisualizadorResultados()
+
+            while True:
+                opcao = visualizador.mostrar_menu()
+
+                if opcao == "1":
+                    visualizador.plotar_curva_aprendizagem(self)
+                elif opcao == "2":
+                    visualizador.plotar_comparacao_agentes(self)
+                elif opcao == "3":
+                    visualizador.plotar_evolucao_epsilon(self)
+                elif opcao == "4":
+                    visualizador.plotar_todos(self)
+                    break
+                elif opcao == "5":
+                    print("✅ Saindo...")
+                    break
+                else:
+                    print("❌ Opção inválida. Tente novamente.")
+
+                # Perguntar se quer ver mais gráficos
+                if opcao in ["1", "2", "3"]:
+                    continuar = input("\nVer outro gráfico? (s/n): ").strip().lower()
+                    if continuar != 's':
+                        break
+
+    # Função de conveniência para compatibilidade
 def cria(nome_do_ficheiro_parametros: str) -> MotorDeSimulacao:
     """Alias para MotorDeSimulacao.cria()"""
     return MotorDeSimulacao.cria(nome_do_ficheiro_parametros)
